@@ -211,6 +211,30 @@ patches with `try/finally`-equivalent safety. Do not blanket-patch unrelated PRF
 calls. The scheduler itself is excluded because the required deterministic work is in
 PRF's scheduler branch.
 
+## Implementation notes
+
+The initial implementation targets the PRF assembly from baseline commit
+`8f4de68148a5ff0cd0f96ba02cf7b4b258224924`.
+
+- The generated methods were checked against that DLL before registration. In
+  particular, the state-changing partial item/job action is
+  `ITab_Items.<ChoicesForThing>b__7`; ordinal 6 is only the slider label formatter.
+  The paperclip power slider setter is ordinal 2; ordinal 1 is likewise only its label
+  formatter.
+- The splitter and drone-area constructors both consume `Verse.Rand`, so both receive
+  scoped push/pop guards.
+- Output-setting copies and colored-light changes capture explicit `Thing[]` targets on
+  the issuing client. Slot groups and splitter outputs use cell and parent/direction
+  identities respectively.
+- The integration remains gated on `ScheduledCall`; it does not patch or replace PRF's
+  scheduler.
+- A clean Release build was completed in the .NET SDK 8 Docker image with zero warnings
+  and zero errors.
+
+The in-game host/client acceptance matrix below still needs to be run against the PRF
+release chosen as the minimum supported version. A compiler-clean build is not a
+substitute for the two-client checksum and unsafe-sync-logger gates.
+
 ## Intentionally local or excluded behavior
 
 Do not synchronize:
@@ -256,9 +280,9 @@ mistaking an incomplete integration for safe support.
 ## Open decisions before implementation
 
 - Select the exact minimum PRF version after the scheduler work is merged and released.
-- Resolve and record compiler-generated lambda ordinals against that release DLL.
-- Decide whether the two constructor RNG guards are necessary after source audit and
-  unsafe-logger testing.
+- Re-check compiler-generated lambda ordinals against that tagged release DLL.
+- Re-check the two constructor RNG guards if the tagged release changes their code or
+  the unsafe-sync logger exposes a related issue.
 - Confirm which item-tab and embedded storage-filter actions Multiplayer core already
   covers, while retaining smoke tests for their PRF call paths.
 

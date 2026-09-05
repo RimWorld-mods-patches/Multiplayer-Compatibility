@@ -81,6 +81,7 @@ PokéWorld | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/
 PowerSwitch | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=717632155) [![url][repo]](https://github.com/HaploX1/RimWorld-PowerSwitch)
 Prison Commons | [![url][steam]](https://steamcommunity.com/workshop/filedetails/?id=2630896782) 
 Processor Framework | [![url][steam]](https://steamcommunity.com/workshop/filedetails/?id=2633514537) [![url][repo]](https://github.com/Syrchalis/ProcessorFramework)
+Project RimFactory Revived | [![url][repo]](https://github.com/zymex22/Project-RimFactory-Revived)
 Quality Builder | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=754637870) 
 ReGrowth: Core | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2260097569) [![url][repo]](https://github.com/Helixien/ReGrowth-Core)
 Reinforced Mechanoid 2 | [![url][steam]](https://steamcommunity.com/sharedfiles/filedetails/?id=2910050186) [![url][repo]](https://github.com/Helixien/ReinforcedMechanoids-2)
