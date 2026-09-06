@@ -367,6 +367,17 @@ namespace Multiplayer.Compat
             public int RangeRotation;
         }
 
+        private static ProductionMask PackProductionValues(ProductionState state)
+        {
+            var values = default(ProductionMask);
+            if (state.Output) values |= ProductionMask.Output;
+            if (state.Obey) values |= ProductionMask.Obey;
+            if (state.Forbid) values |= ProductionMask.Forbid;
+            if (state.Limit) values |= ProductionMask.Limit;
+            if (state.Stacks) values |= ProductionMask.Stacks;
+            return values;
+        }
+
         private static ProductionState CaptureProduction(Thing target)
         {
             if (target == null)
@@ -445,28 +456,28 @@ namespace Multiplayer.Compat
             var hasSlot = changed.Slot != null && changed.Slot.CellsList.Count > 0;
             var slotCell = hasSlot ? changed.Slot.CellsList[0] : IntVec3.Invalid;
             ApplyProduction(__state, __state.Slot);
-            SyncProductionSettings(changed.Target, (int)changed.Mask, changed.Output, changed.Obey, changed.Forbid,
-                changed.Limit, changed.Count, changed.Stacks, hasSlot, slotCell,
-                changed.RangeType, changed.RangeRotation);
+            SyncProductionSettings(changed.Target, (int)changed.Mask, (int)PackProductionValues(changed),
+                changed.Count, slotCell, changed.RangeType, changed.RangeRotation);
         }
 
-        private static void SyncProductionSettings(Thing target, int maskValue, bool output, bool obey, bool forbid,
-            bool limit, int count, bool stacks, bool hasSlot, IntVec3 slotCell, string rangeType, int rangeRotation)
+        private static void SyncProductionSettings(Thing target, int maskValue, int valueMask, int count,
+            IntVec3 slotCell, string rangeType, int rangeRotation)
         {
+            var values = (ProductionMask)valueMask;
             var state = new ProductionState
             {
                 Target = target,
                 Mask = (ProductionMask)maskValue,
-                Output = output,
-                Obey = obey,
-                Forbid = forbid,
-                Limit = limit,
+                Output = values.HasFlag(ProductionMask.Output),
+                Obey = values.HasFlag(ProductionMask.Obey),
+                Forbid = values.HasFlag(ProductionMask.Forbid),
+                Limit = values.HasFlag(ProductionMask.Limit),
                 Count = count,
-                Stacks = stacks,
+                Stacks = values.HasFlag(ProductionMask.Stacks),
                 RangeType = rangeType,
                 RangeRotation = rangeRotation
             };
-            var slot = hasSlot
+            var slot = slotCell.IsValid
                 ? target?.Map?.haulDestinationManager.AllGroups.FirstOrDefault(group => group.CellsList.Contains(slotCell))
                 : null;
             ApplyProduction(state, slot);
@@ -870,11 +881,7 @@ namespace Multiplayer.Compat
         private static void RegisterStorage()
         {
             var massStorageType = ModType("Storage.Building_MassStorageUnit");
-            var coldStorageType = ModType("Storage.Building_ColdStorage");
             var ioPortType = ModType("Storage.Building_StorageUnitIOPort");
-            MP.RegisterSyncMethod(AccessTools.PropertySetter(massStorageType, "RenamableLabel"));
-            MP.RegisterSyncMethod(AccessTools.PropertySetter(coldStorageType, "RenamableLabel"));
-            MP.RegisterSyncMethod(AccessTools.PropertySetter(ioBaseType, "RenamableLabel"));
             MpCompat.RegisterLambdaMethod(massStorageType, "GetGizmos", 1);
             MpCompat.RegisterLambdaMethod(ModType("Storage.Building_MassStorageUnitPowered"), "GetGizmos", 2);
             MpCompat.RegisterLambdaMethod(ModType("Storage.Building_ColdStoragePowered"), "GetGizmos", 2);
@@ -1141,6 +1148,31 @@ namespace Multiplayer.Compat
             public int FemaleYoung;
         }
 
+        [Flags]
+        private enum SlaughterValues
+        {
+            Slaughter = 1,
+            Bonds = 2,
+            Pregnancy = 4,
+            Trained = 8
+        }
+
+        private static SlaughterValues PackSlaughterValues(SlaughterRow row)
+        {
+            var values = default(SlaughterValues);
+            if (row.Slaughter) values |= SlaughterValues.Slaughter;
+            if (row.Bonds) values |= SlaughterValues.Bonds;
+            if (row.Pregnancy) values |= SlaughterValues.Pregnancy;
+            if (row.Trained) values |= SlaughterValues.Trained;
+            return values;
+        }
+
+        private static int[] PackSlaughterCounts(SlaughterRow row)
+        {
+            return new[] { row.NoneYoung, row.NoneAdult, row.MaleAdult, row.MaleYoung,
+                row.FemaleAdult, row.FemaleYoung };
+        }
+
         private sealed class SlaughterState
         {
             public Thing Target;
@@ -1218,32 +1250,31 @@ namespace Multiplayer.Compat
             foreach (var change in changes)
             {
                 var row = change.Value;
-                SyncSlaughterRow(__state.Target, change.Key, row.Slaughter, row.Bonds, row.Pregnancy, row.Trained,
-                    row.NoneYoung, row.NoneAdult, row.MaleAdult, row.MaleYoung, row.FemaleAdult, row.FemaleYoung);
+                SyncSlaughterRow(__state.Target, change.Key, (int)PackSlaughterValues(row),
+                    PackSlaughterCounts(row));
             }
         }
 
-        private static void SyncSlaughterRow(Thing owner, ThingDef def, bool slaughter, bool bonds,
-            bool pregnancy, bool trained, int noneYoung, int noneAdult, int maleAdult, int maleYoung,
-            int femaleAdult, int femaleYoung)
+        private static void SyncSlaughterRow(Thing owner, ThingDef def, int valueMask, int[] counts)
         {
             var settings = Property(owner, "Settings")?.GetValue(owner) as IDictionary;
-            if (settings == null || def == null)
+            if (settings == null || def == null || counts == null || counts.Length != 6)
                 return;
+            var values = (SlaughterValues)valueMask;
             var row = settings.Contains(def) ? settings[def] : Activator.CreateInstance(slaughterSettingsType);
             Field(row, "def").SetValue(row, def);
             ApplySlaughterRow(row, new SlaughterRow
             {
-                Slaughter = slaughter,
-                Bonds = bonds,
-                Pregnancy = pregnancy,
-                Trained = trained,
-                NoneYoung = noneYoung,
-                NoneAdult = noneAdult,
-                MaleAdult = maleAdult,
-                MaleYoung = maleYoung,
-                FemaleAdult = femaleAdult,
-                FemaleYoung = femaleYoung
+                Slaughter = values.HasFlag(SlaughterValues.Slaughter),
+                Bonds = values.HasFlag(SlaughterValues.Bonds),
+                Pregnancy = values.HasFlag(SlaughterValues.Pregnancy),
+                Trained = values.HasFlag(SlaughterValues.Trained),
+                NoneYoung = counts[0],
+                NoneAdult = counts[1],
+                MaleAdult = counts[2],
+                MaleYoung = counts[3],
+                FemaleAdult = counts[4],
+                FemaleYoung = counts[5]
             });
             settings[def] = row;
         }
