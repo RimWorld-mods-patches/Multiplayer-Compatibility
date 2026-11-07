@@ -1,0 +1,54 @@
+name: Release Integration
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration
+    paths-ignore:
+      - 'README.md'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build-integration:
+    name: Validate and package integration build
+    if: github.ref == 'refs/heads/integration'
+    uses: ./.github/workflows/pr-check.yml
+
+  publish-integration:
+    name: Publish integration prerelease
+    needs: build-integration
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - name: Download mod ZIP
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: ${{ needs.build-integration.outputs.zip_name }}
+          skip-decompress: true
+
+      - name: Publish integration release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MOD_ZIP: ${{ needs.build-integration.outputs.zip_name }}
+        run: |
+          unzip -tq "$MOD_ZIP"
+          tag=integration-latest
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release delete "$tag" --cleanup-tag --yes
+          fi
+          gh release create "$tag" "$MOD_ZIP" \
+            --target "$GITHUB_SHA" \
+            --title "Multiplayer Compatibility Integration" \
+            --notes "RimWorld 1.7 integration build from commit $GITHUB_SHA." \
+            --prerelease --latest=false
