@@ -7,18 +7,11 @@ env:
 permissions:
   contents: read
 
-on:
-  pull_request:
-  workflow_call:
-    outputs:
-      zip_name:
-        description: Filename of the uploaded mod ZIP.
-        value: ${{ jobs.package-mod.outputs.zip_name }}
+on: pull_request
 
 concurrency:
-  # Use a separate group when the integration workflow calls these jobs.
-  group: mpcompat-validation-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -77,8 +70,6 @@ jobs:
     name: Package mod for testing
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    outputs:
-      zip_name: ${{ steps.package.outputs.path }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -100,12 +91,7 @@ jobs:
         run: |
           ./release_bundler.sh
           short_sha=$(git rev-parse --short HEAD)
-          if [[ -n "$PR_NUMBER" ]]; then
-            stamp="pr${PR_NUMBER}-${short_sha}"
-          else
-            stamp="integration.$(date -u +%Y%m%d)+${short_sha}"
-          fi
-          package="Multiplayer-Compatibility-${stamp}.zip"
+          package="Multiplayer-Compatibility-pr${PR_NUMBER}-${short_sha}.zip"
           mv Multiplayer-Compatibility.zip "$package"
           echo "path=$package" >> "$GITHUB_OUTPUT"
 
