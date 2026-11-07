@@ -1,0 +1,163 @@
+# CI and rolling GitHub release for the integration branch.
+
+name: Release Integration
+
+env:
+  SLN_PATH: Multiplayer_Compat.sln
+  DOTNET_NOLOGO: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+permissions:
+  contents: read
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - integration
+    paths-ignore:
+      - 'README.md'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build mod (${{ matrix.os }}, ${{ matrix.configuration }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        configuration: [Debug, Release]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SLN_PATH }}
+
+      - name: Build mod
+        run: dotnet build ${{ env.SLN_PATH }} --configuration ${{ matrix.configuration }} --no-restore
+
+  format-check:
+    name: Code formatting (non-blocking)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SLN_PATH }}
+
+      - name: Check code formatting
+        continue-on-error: true
+        run: dotnet format ${{ env.SLN_PATH }} --verify-no-changes --no-restore
+
+  package-artifacts:
+    name: Package mod and publish integration release
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Compute version stamp
+        id: stamp
+        shell: bash
+        run: |
+          date_utc=$(date -u +%Y%m%d)
+          short_sha=$(git rev-parse --short HEAD)
+          stamp="integration.${date_utc}+${short_sha}"
+          assembly_version=$(sed -n 's/^\[assembly: AssemblyVersion("\([^"]*\)")\]$/\1/p' Source/Properties/AssemblyInfo.cs)
+          test -n "$assembly_version"
+          {
+            echo "stamp=$stamp"
+            echo "mod_version=${assembly_version}-${stamp}"
+            echo "mod_zip=Multiplayer-Compatibility-${stamp}.zip"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@a98b56852c35b8e3190ac28c8c2271da59106c68 # v6.0.0
+        with:
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/*.csproj'
+
+      - name: Restore dependencies
+        run: dotnet restore ${{ env.SLN_PATH }}
+
+      - name: Build mod (Release)
+        run: dotnet build ${{ env.SLN_PATH }} --configuration Release --no-restore
+
+      - name: Stamp About.xml and package mod files
+        shell: bash
+        env:
+          MOD_VERSION: ${{ steps.stamp.outputs.mod_version }}
+        run: |
+          sed -i \
+            -e 's|^\(  <name>.*\)</name>$|\1 [Integration]</name>|' \
+            -e "/^  <author>/a\  <modVersion>$MOD_VERSION</modVersion>" \
+            About/About.xml
+          mkdir -p artifacts/mod/Multiplayer-Compatibility
+          mv About/ Assemblies/ Referenced/ Languages/ artifacts/mod/Multiplayer-Compatibility/
+
+      - name: Create stamped mod ZIP
+        shell: bash
+        env:
+          MOD_ZIP: ${{ steps.stamp.outputs.mod_zip }}
+        working-directory: artifacts/mod
+        run: zip -qr "../../$MOD_ZIP" Multiplayer-Compatibility/
+
+      - name: Upload mod artifact
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: Multiplayer-Compatibility-${{ steps.stamp.outputs.stamp }}
+          path: artifacts/mod/
+          retention-days: 7
+          if-no-files-found: error
+          overwrite: true
+
+      - name: Publish integration release
+        if: github.ref == 'refs/heads/integration'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          MOD_ZIP: ${{ steps.stamp.outputs.mod_zip }}
+        run: |
+          tag=integration-latest
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release delete "$tag" --cleanup-tag --yes
+          fi
+          gh release create "$tag" \
+            --target "$GITHUB_SHA" \
+            --title "Integration" \
+            --notes-file .github/workflows/integration-notes.md \
+            --latest=true \
+            "$MOD_ZIP"
