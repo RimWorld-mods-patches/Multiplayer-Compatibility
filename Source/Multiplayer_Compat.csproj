@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net48</TargetFramework>
+    <TargetFramework>net10.0</TargetFramework>
     <LangVersion>12</LangVersion>
     <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
-    <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
+    <GenerateDependencyFile>false</GenerateDependencyFile>
     <PublicizeAsReferenceAssemblies>false</PublicizeAsReferenceAssemblies>
     <OutputPath>..\Assemblies\</OutputPath>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
@@ -14,8 +14,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- .NET also defines System.Reflection.MethodInvoker. -->
+    <Using Include="HarmonyLib.MethodInvoker" Alias="MethodInvoker" />
     <PackageReference Include="Lib.Harmony">
-      <Version>2.3.6</Version>
+      <Version>3.0.0-rc.3</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="RimWorld.MultiplayerAPI">
@@ -23,7 +25,7 @@
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Krafs.Rimworld.Ref">
-      <Version>1.6.*</Version>
+      <Version>1.7.4985-unstable</Version>
       <ExcludeAssets>runtime</ExcludeAssets>
     </PackageReference>
     <PackageReference Include="Krafs.Publicizer">
